@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Paradas{% endblock %}
+{% block page_title %}Registrar Parada{% endblock %}
+
+{% block content %}
+<div class="grid-2" style="align-items:start">
+    <!-- FORM -->
+    <div class="card">
+        <div class="card-title">Nova Parada</div>
+        <form method="POST">
+            <div class="form-grid">
+                <div class="form-group">
+                    <label>Máquina *</label>
+                    <select name="maquina_id" required>
+                        <option value="">Selecione...</option>
+                        {% for m in maquinas %}
+                        <option value="{{ m.id }}">{{ m.nome }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Turno *</label>
+                    <select name="turno" required>
+                        <option value="">Selecione...</option>
+                        <option value="Manhã">☀ Manhã</option>
+                        <option value="Tarde">🌤 Tarde</option>
+                        <option value="Noite">🌙 Noite</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Data *</label>
+                    <input type="date" name="data" value="{{ hoje }}" required>
+                </div>
+                <div class="form-group">
+                    <label>Categoria *</label>
+                    <select name="categoria" required>
+                        <option value="">Selecione...</option>
+                        <option value="Mecânica">🔧 Mecânica</option>
+                        <option value="Elétrica">⚡ Elétrica</option>
+                        <option value="Setup">⚙ Setup / Troca</option>
+                        <option value="Falta de Material">📦 Falta de Material</option>
+                        <option value="Qualidade">❌ Qualidade</option>
+                        <option value="Operacional">👤 Operacional</option>
+                        <option value="Programada">📋 Manutenção Programada</option>
+                        <option value="Outros">• Outros</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Hora Início *</label>
+                    <input type="time" name="hora_inicio" required>
+                </div>
+                <div class="form-group">
+                    <label>Hora Fim</label>
+                    <input type="time" name="hora_fim" value="{{ hora_atual }}">
+                </div>
+                <div class="form-group full">
+                    <label>Motivo *</label>
+                    <input type="text" name="motivo" required placeholder="Descreva o motivo da parada...">
+                </div>
+                <div class="form-group full">
+                    <label>Observação</label>
+                    <textarea name="observacao" placeholder="Detalhes adicionais (opcional)..."></textarea>
+                </div>
+            </div>
+            <div style="margin-top:20px">
+                <button type="submit" class="btn btn-primary">⏸ Registrar Parada</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- LISTA -->
+    <div class="card">
+        <div class="card-title">Últimas 50 Paradas</div>
+        {% if paradas %}
+        <div style="display:flex;flex-direction:column;gap:10px;max-height:600px;overflow-y:auto">
+            {% for p in paradas %}
+            <div style="padding:12px;background:#0f1117;border-radius:8px;border:1px solid #2e3348">
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-size:13px;font-weight:600;color:#e8eaf0">{{ p.maquina.nome }}</span>
+                    <span style="font-size:12px;color:#7a8099">{{ p.data.strftime('%d/%m') }} · {{ p.turno }}</span>
+                </div>
+                <div style="font-size:12px;color:#7a8099;margin-bottom:6px">
+                    {{ p.hora_inicio.strftime('%H:%M') }}
+                    {% if p.hora_fim %}→ {{ p.hora_fim.strftime('%H:%M') }}
+                        <span style="color:#f5a623;font-weight:600"> ({{ '%.0f'|format(p.duracao_min) }}min)</span>
+                    {% else %}
+                        <span style="color:#e84040"> → Em andamento</span>
+                    {% endif %}
+                </div>
+                <div style="font-size:13px;color:#e8eaf0">{{ p.motivo }}</div>
+                <div style="display:flex;gap:8px;margin-top:6px;align-items:center;flex-wrap:wrap">
+                    {% if p.categoria %}
+                    <span class="tag tag-operador" style="font-size:10px">{{ p.categoria }}</span>
+                    {% endif %}
+                    <span style="font-size:11px;color:#4a9eff">👤 {{ p.usuario.nome }}</span>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% else %}
+        <div style="color:#4a5068;font-size:13px;padding:20px 0;text-align:center">Nenhuma parada registrada ainda.</div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

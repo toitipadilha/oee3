@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Relatórios{% endblock %}
+{% block page_title %}Relatórios de OEE{% endblock %}
+
+{% block extra_css %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+{% endblock %}
+
+{% block content %}
+
+<!-- FILTROS -->
+<div class="card" style="margin-bottom:24px">
+    <form method="GET" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end">
+        <div class="form-group" style="margin:0">
+            <label>De</label>
+            <input type="date" name="data_ini" value="{{ data_ini }}">
+        </div>
+        <div class="form-group" style="margin:0">
+            <label>Até</label>
+            <input type="date" name="data_fim" value="{{ data_fim }}">
+        </div>
+        <div class="form-group" style="margin:0;min-width:200px">
+            <label>Máquina</label>
+            <select name="maquina_id">
+                <option value="">Todas</option>
+                {% for m in maquinas %}
+                <option value="{{ m.id }}" {% if maquina_id_sel == m.id|string %}selected{% endif %}>{{ m.nome }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <button type="submit" class="btn btn-primary" style="margin-bottom:0">Filtrar</button>
+        <a href="/api/exportar-csv?data_ini={{ data_ini }}&data_fim={{ data_fim }}{% if maquina_id_sel %}&maquina_id={{ maquina_id_sel }}{% endif %}"
+           class="btn btn-secondary" style="margin-bottom:0">↓ Exportar CSV</a>
+    </form>
+</div>
+
+{% if registros %}
+
+<!-- OEE POR MÁQUINA -->
+<div class="grid-2" style="margin-bottom:24px">
+    <div class="card">
+        <div class="card-title">OEE por Máquina (média do período)</div>
+        <div style="display:flex;flex-direction:column;gap:14px">
+            {% for rm in resumo_maquinas %}
+            <div>
+                <div style="display:flex;justify-content:space-between;margin-bottom:6px">
+                    <span style="font-size:13px;font-weight:600">{{ rm.nome }}</span>
+                    <span class="oee-val {{ 'good' if rm.oee >= 65 else ('warn' if rm.oee >= 50 else 'bad') }}" style="font-size:14px">{{ rm.oee }}%</span>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill {{ 'fill-good' if rm.oee >= 65 else ('fill-warn' if rm.oee >= 50 else 'fill-bad') }}"
+                         style="width:{{ rm.oee }}%"></div>
+                </div>
+                <div style="font-size:11px;color:#4a5068;margin-top:4px">
+                    {{ rm.pecas }} peças boas · {{ rm.refugo }} refugos
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-title">Tendência OEE no Período</div>
+        <div class="chart-container">
+            <canvas id="chartPeriodo"></canvas>
+        </div>
+    </div>
+</div>
+
+<!-- TABELA DETALHADA -->
+<div class="card">
+    <div class="card-title">Registros Detalhados ({{ registros|length }})</div>
+    <div class="table-wrap">
+        <table>
+            <thead>
+                <tr>
+                    <th>Data</th>
+                    <th>Turno</th>
+                    <th>Operador</th>
+                    <th>Máquina</th>
+                    <th>Peças</th>
+                    <th>Boas</th>
+                    <th>Refugo</th>
+                    <th>Parada</th>
+                    <th>Disp.</th>
+                    <th>Perf.</th>
+                    <th>Qual.</th>
+                    <th>OEE</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in registros %}
+                <tr>
+                    <td>{{ r.data.strftime('%d/%m/%Y') }}</td>
+                    <td>{{ r.turno }}</td>
+                    <td style="color:#4a9eff">{{ r.usuario.nome }}</td>
+                    <td style="color:#e8eaf0;font-weight:600">{{ r.maquina.nome }}</td>
+                    <td>{{ r.pecas_produzidas }}</td>
+                    <td style="color:#00c896">{{ r.pecas_boas }}</td>
+                    <td style="color:#e84040">{{ r.pecas_refugo }}</td>
+                    <td style="color:#f5a623">{{ '%.0f'|format(r.tempo_parada_min) }}min</td>
+                    <td>{{ '%.1f'|format(r.disponibilidade) }}%</td>
+                    <td>{{ '%.1f'|format(r.performance) }}%</td>
+                    <td>{{ '%.1f'|format(r.qualidade) }}%</td>
+                    <td>
+                        <span class="oee-val {{ 'good' if r.oee >= 65 else ('warn' if r.oee >= 50 else 'bad') }}" style="font-size:13px">
+                            {{ '%.1f'|format(r.oee) }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% else %}
+<div class="card" style="text-align:center;padding:60px 20px">
+    <div style="font-size:40px;margin-bottom:16px">📊</div>
+    <div style="font-size:16px;font-weight:600;margin-bottom:8px">Nenhum registro no período</div>
+    <div style="color:#7a8099;font-size:13px;margin-bottom:20px">Ajuste os filtros ou registre a produção.</div>
+    <a href="/apontar" class="btn btn-primary">Apontar Produção</a>
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const dados = {{ oee_diario|safe }};
+if (dados.length > 0) {
+    const ctx = document.getElementById('chartPeriodo').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dados.map(d => d.data),
+            datasets: [{
+                label: 'OEE %',
+                data: dados.map(d => d.oee),
+                backgroundColor: dados.map(d => d.oee >= 65 ? '#00c89666' : (d.oee >= 50 ? '#f5a62366' : '#e8404066')),
+                borderColor: dados.map(d => d.oee >= 65 ? '#00c896' : (d.oee >= 50 ? '#f5a623' : '#e84040')),
+                borderWidth: 1,
+                borderRadius: 4
+            }]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                x: { grid: { color: '#2e3348' }, ticks: { color: '#7a8099', font: { size: 10 } } },
+                y: { grid: { color: '#2e3348' }, ticks: { color: '#7a8099', callback: v => v+'%' }, min: 0, max: 100 }
+            }
+        }
+    });
+}
+</script>
+{% endblock %}
