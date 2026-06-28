@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="30">
+    <title>OEE Pro — Painel TV</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --bg: #0a0d14; --surface: #131720; --border: #1e2436;
+            --accent: #00c896; --warn: #f5a623; --danger: #e84040;
+            --text: #ffffff; --dim: #4a5068; --muted: #8899aa;
+        }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+        /* HEADER */
+        .tv-header {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 10px 28px; background: var(--surface);
+            border-bottom: 2px solid var(--accent); flex-shrink: 0;
+        }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-name { font-size: 20px; font-weight: 700; color: var(--accent); }
+        .brand-sub { font-size: 11px; color: var(--dim); }
+        .status-pills { display: flex; gap: 16px; }
+        .pill { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; }
+        .pill-dot { width: 9px; height: 9px; border-radius: 50%; }
+        .clock-block { text-align: right; }
+        .clock-time { font-size: 26px; font-weight: 700; font-family: monospace; letter-spacing: .05em; }
+        .clock-sub { font-size: 11px; color: var(--dim); }
+
+        /* BODY */
+        .tv-body { flex: 1; display: grid; grid-template-columns: 300px 1fr; overflow: hidden; }
+
+        /* LEFT */
+        .tv-left { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 20px 16px; gap: 16px; }
+        .gauge-wrap { position: relative; width: 200px; height: 200px; }
+        .gauge-center { position: absolute; top: 50%; left: 50%; transform: translate(-50%,-42%); text-align: center; }
+        .gauge-val { font-size: 52px; font-weight: 800; font-family: monospace; line-height: 1; }
+        .gauge-lbl { font-size: 12px; color: var(--dim); margin-top: 3px; text-transform: uppercase; letter-spacing: .1em; }
+        .sub-stats { display: flex; gap: 20px; }
+        .sub-stat { text-align: center; }
+        .sub-stat .lbl { font-size: 10px; color: var(--dim); text-transform: uppercase; }
+        .sub-stat .val { font-size: 22px; font-weight: 700; font-family: monospace; }
+        .divider { width: 100%; height: 1px; background: var(--border); }
+        .big-num { text-align: center; }
+        .big-num .n { font-size: 40px; font-weight: 800; font-family: monospace; color: var(--accent); line-height: 1; }
+        .big-num .l { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .08em; margin-top: 2px; }
+        .big-num .s { font-size: 13px; color: var(--danger); margin-top: 2px; }
+
+        /* RIGHT */
+        .tv-right { display: flex; flex-direction: column; padding: 16px; gap: 14px; overflow: hidden; }
+        .section-title { font-size: 10px; text-transform: uppercase; letter-spacing: .14em; color: var(--dim); margin-bottom: 4px; }
+
+        /* MÁQUINAS */
+        .maquinas-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 10px; }
+        .maq-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 14px 16px;
+            border-left: 4px solid;
+            position: relative;
+        }
+        .maq-card.ok      { border-left-color: var(--accent); }
+        .maq-card.alerta  { border-left-color: var(--warn); }
+        .maq-card.critico { border-left-color: var(--danger); }
+        .maq-card.sem_dados { border-left-color: var(--border); }
+        .maq-dot { width: 9px; height: 9px; border-radius: 50%; position: absolute; top: 12px; right: 12px; }
+        .maq-dot.ok      { background: var(--accent); animation: pulse 2s infinite; }
+        .maq-dot.alerta  { background: var(--warn); animation: pulse 2s infinite; }
+        .maq-dot.critico { background: var(--danger); animation: pulse .8s infinite; }
+        .maq-dot.sem_dados { background: var(--dim); }
+        @keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.4;transform:scale(1.3)} }
+        .maq-nome { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .maq-setor { font-size: 10px; color: var(--dim); margin-bottom: 8px; }
+        .maq-oee { font-size: 30px; font-weight: 800; font-family: monospace; line-height: 1; }
+        .maq-oee.ok      { color: var(--accent); }
+        .maq-oee.alerta  { color: var(--warn); }
+        .maq-oee.critico { color: var(--danger); }
+        .maq-oee.sem_dados { color: var(--dim); }
+        .maq-pecas { font-size: 11px; color: var(--dim); margin-top: 4px; }
+        .maq-operador { font-size: 11px; color: var(--muted); margin-top: 3px; font-weight: 600; }
+
+        /* PARADAS */
+        .paradas-lista { display: flex; flex-direction: column; gap: 6px; flex: 1; overflow: hidden; }
+        .parada-item {
+            display: flex; align-items: center; gap: 10px;
+            padding: 8px 12px; background: var(--surface);
+            border-radius: 7px; border-left: 3px solid;
+            flex-shrink: 0;
+        }
+        .parada-item.Mecânica, .parada-item.Elétrica { border-left-color: var(--danger); }
+        .parada-item.Setup { border-left-color: var(--warn); }
+        .parada-item { border-left-color: var(--dim); }
+        .parada-maq { font-size: 12px; font-weight: 700; color: var(--text); min-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .parada-motivo { font-size: 11px; color: var(--muted); flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .parada-cat { font-size: 10px; color: var(--dim); min-width: 60px; }
+        .parada-dur { font-size: 13px; font-weight: 700; color: var(--warn); min-width: 45px; text-align: right; }
+        .parada-hora { font-size: 10px; color: var(--dim); min-width: 50px; text-align: right; }
+
+        /* FOOTER */
+        .tv-footer {
+            padding: 6px 28px; background: var(--surface);
+            border-top: 1px solid var(--border);
+            display: flex; justify-content: space-between; align-items: center;
+            font-size: 11px; color: var(--dim); flex-shrink: 0;
+        }
+        .refresh-green { color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="tv-header">
+    <div class="brand">
+        <span style="font-size:22px">⚙</span>
+        <div>
+            <div class="brand-name">OEE Pro</div>
+            <div class="brand-sub">{{ cfg.nome_empresa }} · Painel de Produção</div>
+        </div>
+    </div>
+
+    <div class="status-pills">
+        {% set ok_c = maquinas_status|selectattr('status','eq','ok')|list|length %}
+        {% set al_c = maquinas_status|selectattr('status','eq','alerta')|list|length %}
+        {% set cr_c = maquinas_status|selectattr('status','eq','critico')|list|length %}
+        <div class="pill"><div class="pill-dot" style="background:var(--accent)"></div> {{ ok_c }} OK</div>
+        <div class="pill"><div class="pill-dot" style="background:var(--warn)"></div> {{ al_c }} Alerta</div>
+        <div class="pill"><div class="pill-dot" style="background:var(--danger)"></div> {{ cr_c }} Crítico</div>
+    </div>
+
+    <div class="clock-block">
+        <div class="clock-time" id="clock">--:--:--</div>
+        <div class="clock-sub">{{ hoje.strftime('%d/%m/%Y') }} · Atualiza em <span id="cd">30</span>s</div>
+    </div>
+</div>
+
+<!-- BODY -->
+<div class="tv-body">
+
+    <!-- LEFT - OEE -->
+    <div class="tv-left">
+        <div class="gauge-wrap">
+            <canvas id="gaugeTV" width="200" height="200"></canvas>
+            <div class="gauge-center">
+                <div class="gauge-val" style="color:{{ '#00c896' if stats.oee >= cfg.meta_oee else ('#f5a623' if stats.oee >= 50 else '#e84040') }}">
+                    {{ '%.1f'|format(stats.oee) }}%
+                </div>
+                <div class="gauge-lbl">OEE Geral</div>
+            </div>
+        </div>
+
+        <div class="sub-stats">
+            <div class="sub-stat">
+                <div class="lbl">Disp.</div>
+                <div class="val" style="color:#4a9eff">{{ '%.0f'|format(stats.disponibilidade) }}%</div>
+            </div>
+            <div class="sub-stat">
+                <div class="lbl">Perf.</div>
+                <div class="val" style="color:var(--warn)">{{ '%.0f'|format(stats.performance) }}%</div>
+            </div>
+            <div class="sub-stat">
+                <div class="lbl">Qual.</div>
+                <div class="val" style="color:#b36aff">{{ '%.0f'|format(stats.qualidade) }}%</div>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="big-num">
+            <div class="n">{{ stats.pecas_boas }}</div>
+            <div class="l">Peças Boas — Hoje</div>
+            <div class="s">{{ stats.pecas_refugo }} refugos · {{ stats.pecas_rejeito }} rejeitos</div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="big-num">
+            <div class="n" style="color:var(--warn);font-size:32px">{{ '%.0f'|format(stats.total_paradas_min) }}<span style="font-size:16px">min</span></div>
+            <div class="l">Tempo Parado — Hoje</div>
+        </div>
+    </div>
+
+    <!-- RIGHT -->
+    <div class="tv-right">
+
+        <!-- MÁQUINAS -->
+        <div>
+            <div class="section-title">Status das Máquinas — {{ hoje.strftime('%d/%m/%Y') }}</div>
+            <div class="maquinas-grid">
+                {% for ms in maquinas_status %}
+                <div class="maq-card {{ ms.status }}">
+                    <div class="maq-dot {{ ms.status }}"></div>
+                    <div class="maq-nome">{{ ms.maquina.nome }}</div>
+                    <div class="maq-setor">{{ ms.maquina.setor or '—' }}</div>
+                    <div class="maq-oee {{ ms.status }}">
+                        {% if ms.oee is not none %}{{ ms.oee }}%{% else %}—{% endif %}
+                    </div>
+                    <div class="maq-pecas">{{ ms.pecas_boas }} peças boas</div>
+                    {% if ms.operador %}
+                    <div class="maq-operador">👤 {{ ms.operador }}{% if ms.ultimo_apontamento %} · {{ ms.ultimo_apontamento }}{% endif %}</div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <!-- PARADAS -->
+        <div style="flex:1;min-height:0;display:flex;flex-direction:column">
+            <div class="section-title">Paradas de Hoje ({{ paradas_hoje|length }})</div>
+            {% if paradas_hoje %}
+            <div class="paradas-lista">
+                {% for p in paradas_hoje %}
+                <div class="parada-item {{ p.categoria or '' }}">
+                    <div class="parada-maq">{{ p.maquina.nome }}</div>
+                    <div class="parada-motivo">{{ p.motivo }}</div>
+                    <div class="parada-cat">{{ p.categoria or '—' }}</div>
+                    <div class="parada-hora">{{ p.hora_inicio.strftime('%H:%M') }}{% if p.hora_fim %} → {{ p.hora_fim.strftime('%H:%M') }}{% endif %}</div>
+                    <div class="parada-dur">{% if p.duracao_min %}{{ '%.0f'|format(p.duracao_min) }}min{% else %}—{% endif %}</div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div style="color:var(--accent);font-size:13px;padding:16px 0;text-align:center">✓ Nenhuma parada registrada hoje</div>
+            {% endif %}
+        </div>
+
+    </div>
+</div>
+
+<!-- FOOTER -->
+<div class="tv-footer">
+    <span>oee2.toitisistemas.com.br · Toiti Sistemas</span>
+    <span>Atualização automática a cada <span class="refresh-green">30 segundos</span></span>
+</div>
+
+<script>
+function updateClock() {
+    const now = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    document.getElementById('clock').textContent = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
+}
+setInterval(updateClock, 1000); updateClock();
+
+let sec = 30;
+setInterval(() => { sec--; if(sec<=0) sec=30; document.getElementById('cd').textContent = sec; }, 1000);
+
+const oeeVal = {{ stats.oee }};
+const oeeColor = oeeVal >= {{ cfg.meta_oee }} ? '#00c896' : (oeeVal >= 50 ? '#f5a623' : '#e84040');
+new Chart(document.getElementById('gaugeTV').getContext('2d'), {
+    type: 'doughnut',
+    data: { datasets: [{ data: [oeeVal, 100-oeeVal], backgroundColor: [oeeColor, '#1e2436'], borderWidth: 0, circumference: 240, rotation: 240 }] },
+    options: { responsive: false, cutout: '74%', plugins: { legend: {display:false}, tooltip: {enabled:false} } }
+});
+</script>
+</body>
+</html>
